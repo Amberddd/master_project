@@ -1,0 +1,151 @@
+2.13 Find mating type genes in clean guppy4 haplotype assembly with duplicated collapsed regions
+- mating type genes should present in seperate contigs and are not collapsed
+- mating type genes:
+PtSTE3.2 
+PtSTE3.3
+Ptmfa2
+ptbW/bE 
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/mating_type_gene/chr$ makeblastdb -in ~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR/chrs_LR1.fasta -dbtype nucl -out reference_genome -logfile reference_genome.log
+chr$tblastn -query ../PT_MatingTypeLocus.proteins.fasta -db reference_genome -evalue 1e-5 -num_threads 20 -outfmt 7 -out mating_type_locus.table
+ 
+
+2.14 Synteny analysis
+###for chr14_A, analyze whether AvrSr50 and AvrSr53 in stem rust are lost in leaf rust.
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chr14/synteny_analysis$ minimap2 -x asm5 ../chr14_B_SR.fasta ../chr14_LR1a.fasta > chr14_B_SR_LR.paf
+minimap2 -x asm5 ../chr14_A_SR.fasta ../chr14_LR1a.fasta > chr14_A_SR_LR.paf
+grep tp:A:P chr14_A_SR_LR.paf > map_chr14_A_SR_to_LR.primary_alignments.paf
+grep tp:A:P chr14_B_SR_LR.paf > map_chr14_B_SR_to_LR.primary_alignments.paf
+cut -f 1,3,4,6,8,9 map_chr14_A_SR_to_LR.primary_alignments.paf > map_chr14_A_SR_to_LR.primary_alignments.bed
+cut -f 1,3,4,6,8,9 map_chr14_B_SR_to_LR.primary_alignments.paf > map_chr14_B_SR_to_LR.primary_alignments.bed
+###then modify Jana's R code to generate plots (saved in chr14 file in my desktop)
+
+###then analyze other 17 chromosomes.
+###extract both haplotypes of stem rust and align them with leaf rust haplotype A.
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_SR$touch SR.txt
+vim SR.txt ### write ID of 36 chromosomes
+seqtk subseq SR_chr_A_B_unassigned.fasta SR.txt > SR_chr_A_B.fasta
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/synteny_analysis$ minimap2 -x asm5 ../chrs_SR/SR_chr_A_B.fasta ../chrs_LR1a/chrs_LR1a.fasta > chrs_SR_to_LR.paf
+grep tp:A:P chrs_SR_to_LR.paf > map_chrs_SR_to_LR.primary_alignments.paf
+cut -f 1,3,4,6,8,9 map_chrs_SR_to_LR.primary_alignments.paf > map_chrs_SR_to_LR.primary_alignments.bed
+### change sequence id
+cut -f 1 map_chrs_SR_to_LR.primary_alignments.bed > LR
+sed -i 's/$/_LR/' LR
+cut -f 4 map_chrs_SR_to_LR.primary_alignments.bed > SR
+sed -i 's/$/_SR/' SR
+cut -f 2,3 map_chrs_SR_to_LR.primary_alignments.bed > LR.cor
+cut -f 5,6 map_chrs_SR_to_LR.primary_alignments.bed > SR.cor
+paste LR LR.cor SR SR.cor > map_chrs_SR_to_LR.primary_alignments.bed
+###then plot using Jana's script 
+### to plot repeat density
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR1a$ cut -f 1 chrs_LR1a.fasta.out.bed > LR
+sed -i 's/$/_LR/' LR
+cut -f 2-10 chrs_LR1a.fasta.out.bed > repeatannotation
+paste LR repeatannotation > chrs_LR1a.fasta.out.modify.bed
+###find centromeres and telomeres of leaf rust haplotype A based on Hi-C maps
+touch centromeres.bed
+vim centromeres.bed ### define coordinates of centromeres for leaf rust haplotype A based on Hi-C contact map
+###use Jana's python script to find telomeres
+python ~/FindTelomeres-master/FindTelomeres.py ../chrs_LR1a/chrs_LR1a.fasta > telomeres_LRa1
+
+
+####find collapsed regions in haplotype B (only map nanopore back to haplotype B)
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR1b$ minimap2 -ax map-ont chrs_LR1b.fasta ~/data/fullgenome/leaf.rust.LR1_all.fastq.gz --secondary=no -o nanopore_mapping_chrs_LR1b.sam
+pileup.sh overwrite=true in=nanopore_mapping_chrs_LR1b.sam out=chrs_LR1b.stats.txt basecov=chrs_LR1b.basecov.txt binsize=1000 bincov=chrs_LR1b.bincov.txt
+samtools view -bS nanopore_mapping_chrs_LR1b.sam | samtools sort -@20 -o nanopore_mapping_chrs_LR1b.sorted.bam
+samtools index -@20 nanopore_mapping_chrs_LR1b.sorted.bam
+samtools faidx chrs_LR1b.fasta
+mkdir CollapsedRegions
+
+2.15 Analyze haplotype A & B of Pt
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR1a$minimap2 -ax map-ont chrs_LR1a.fasta ~/data/fullgenome/leaf.rust.LR1_all.fastq.gz --secondary=no -o nanopore_mapping_chrs_LR1a.sam
+pileup.sh overwrite=true in=nanopore_mapping_chrs_LR1a.sam out=chrs_LR1a.stats.txt basecov=chrs_LR1a.basecov.txt binsize=1000 bincov=chrs_LR1a.bincov.txt
+samtools view -bS nanopore_mapping_chrs_LR1a.sam | samtools sort -@20 -o nanopore_mapping_chrs_LR1a.sorted.bam
+samtools index -@20 nanopore_mapping_chrs_LR1a.sorted.bam
+samtools faidx chrs_LR1a.fasta
+mkdir CollapsedRegions
+python ~/find_collapsed_regions.py chrs_LR1a.bincov.txt 1000 33 chrs_LR1a.fasta
+find CollapsedRegions/ -name '*.fasta' > collapsed.coordinate
+for line in $(cat collapsed.coordinate);do echo ${line#*/} >> tmp; done
+for line in $(cat tmp);do echo ${line%_*} >>tmp1; done
+for line in $(cat tmp1);do echo ${line%_*} >>contignames; done
+for line in $(cat tmp1);do echo ${line##*_} >>start.tmp; done
+for line in $(cat start.tmp);do echo $((10#${line})) >>start; done
+for line in $(cat tmp);do echo ${line%.*} >>tmp2; done
+for line in $(cat tmp2);do echo ${line##*_} >>stop; done
+paste contignames start stop > collapsed_regions.bed
+cat collapsed_regions.bed | grep -E '_A' > chrA.bed
+cat collapsed_regions.bed | grep -E '_B' > chrB.bed
+###R 
+dfA<- read.table('chrA.bed')
+head(dfA)
+sum(dfA$V3-dfA$V2) ##29.4MB = 29498000
+dfB<- read.table('chrB.bed')
+head(dfB)
+sum(dfB$V3-dfB$V2)##2.9MB = 2906000
+###find centromeres and telomeres in haplotype A & B of pt
+python ~/FindTelomeres-master/FindTelomeres.py ../chrs_LR1b/chrs_LR1a.fasta > telomeres_LRa1
+python ~/FindTelomeres-master/FindTelomeres.py ../chrs_LR1b/chrs_LR1b.fasta > telomeres_LRb1
+###find centromeres and telomeres in stem rust
+python ~/FindTelomeres-master/FindTelomeres.py ../chrs_SR/SR_chr_A_B.fasta > telomeres_SR
+
+
+###map LR A to B
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR$ minimap2 -x asm5 ../chrs_LR1a/chrs_LR1a.fasta ../chrs_LR1b/chrs_LR1b.fasta > chrs_LR_A_to_B.paf
+grep tp:A:P chrs_LR_A_to_B.paf > chrs_LR_A_to_B.primary_alignment.paf
+cut -f 1,3,4,6,8,9 chrs_LR_A_to_B.primary_alignment.paf > chrs_LR_A_to_B.primary_alignment.bed
+
+###centromeric_repeat (haplotype A,similar for B)
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR1a/annotation$ cut -f 1,4,5 chrs_LR1a.fasta.out.gff > chrs_LR1a.gene_annotation.bed
+cp ../../chrs_LR/centromeres.bed .
+cat centromeres.bed | grep -E '_A'> centromeres_A.bed
+bedtools complement -i centromeres_A.bed -g ../chrs_LR1a.fasta.fai > not_centromeres_A.bed
+repeats=chrs_LR1a.gene_annotation.bed
+bedtools coverage -nonamecheck -a centromeres_A.bed -b ${repeats} > centromeres_A_repeat_coverage.txt
+bedtools coverage -nonamecheck -a not_centromeres_A.bed -b ${repeats} > not_centromeres_A_repeat_coverage.txt
+cd ../../chrs_LR1b/annotation
+cut -f 1,4,5 chrs_LR1b.fasta.out.gff > chrs_LR1b.gene_annotation.bed
+cp ../../chrs_LR/centromeres.bed .
+cat centromeres.bed | grep -E '_B'> centromeres_B.bed
+bedtools complement -i centromeres_B.bed -g ../chrs_LR1b.fasta.fai > not_centromeres_B.bed
+repeats=chrs_LR1b.gene_annotation.bed
+bedtools coverage -nonamecheck -a centromeres_B.bed -b ${repeats} > centromeres_B_repeat_coverage.txt
+bedtools coverage -nonamecheck -a not_centromeres_B.bed -b ${repeats} > not_centromeres_B_repeat_coverage.txt
+cd ../../chrs_SR/
+cat ../chrs_SR/annotation/centromeres_A_repeat_coverage.txt ../chrs_SR/annotation/centromeres_B_repeat_coverage.txt > centromeres_repeat_coverage.txt
+cat ../chrs_SR/annotation/not_centromeres_A_repeat_coverage.txt ../chrs_SR/annotation/not_centromeres_B_repeat_coverage.txt > not_centromeres_repeat_coverage.txt
+mkdir centromere_repeat
+mv centromeres_repeat_coverage.txt centromere_repeat/
+mv not_centromeres_repeat_coverage.txt centromere_repeat/
+###########find % of conserved genes
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/chrs_LR1a/annotation$ cat LR1a.braker.gtf |grep -E $'\tgene\t' > LR1a.genes.gtf
+cut -f 1,4,5 LR1a.genes.gtf > LR1a.genes.bed
+bedtools getfasta -fi ../chrs_LR1a.fasta -bed LR1a.genes.bed > LR1a.genes.fasta
+
+cd ../../chrs_LR1b/annotation
+cat LR1b.braker.gtf |grep -E $'\tgene\t' > LR1b.genes.gtf
+cut -f 1,4,5 LR1b.genes.gtf > LR1b.genes.bed
+bedtools getfasta -fi ../chrs_LR1b.fasta -bed LR1b.genes.bed > LR1b.genes.fasta
+cd ../../chrs_LR
+mkdir genes
+cd genes
+paste ../../chrs_LR1a/annotation/LR1a.genes.fasta ../../chrs_LR1b/annotation/LR1b.genes.fasta > LR1.genes.fasta
+
+cd ../../chrs_SR/annotation/
+cat chr_A.gene_annotation.gff3 | grep -E $'\tgene\t'> SRa.genes.gff3
+cat chr_B.gene_annotation.gff3 | grep -E $'\tgene\t'> SRb.genes.gff3
+cut -f 1,4,5 SRa.genes.gff3 > SRa.genes.bed
+cut -f 1,4,5 SRb.genes.gff3 > SRb.genes.bed
+sed -i 's/_//' SRa.genes.bed
+sed -i 's/_//' SRb.genes.bed
+paste SRa.genes.bed SRb.genes.bed > SR.genes.bed
+bedtools getfasta -fi ../SR_chr_A_B.fasta -bed SR.genes.bed > SR.genes.fasta
+cat ../chrs_LR1a/LR1a.augustus.hints_iter1.aa ../chrs_LR1b/LR1b.augustus.hints_iter1.aa > LR.augustus.hits_iter1.aa
+
+#####orthofinder
+conda install -y orthofinder
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/orthofinder/combine2$
+sed -i 's/>/>gt_LR1_A|/g' Pt_A.fasta
+sed -i 's/>/>gt_LR1_B|/g' Pt_B.fasta
+cat Pt_A.fasta Pt_B.fasta > Pt.fasta
+(base) amber@fisher:~/data/guppy4_haplotigs/Comparative_Biology/orthofinder$ orthofinder -f combine2/ -t 20
+
