@@ -1,0 +1,138 @@
+2.10 polish guppy4 haplotype canu assembly (racon X 1, medaka X 1, pilon --fix indels X 2)
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly$bwa index ../Unpolished_Assembly/LR1-canu-guppy4-haplotigs.contigs.fasta
+bwa mem -t 20 -x ont2d ../Unpolished_Assembly/LR1-canu-guppy4-haplotigs.contigs.fasta ~/data/fullgenome/leaf.rust.LR1_all.fastq.gz > mapping.sam
+racon -t 20 -m 8 -x -6 -g -8 -w 500 --no-trimming --include-unpolished ~/data/fullgenome/leaf.rust.LR1_all.fastq mapping.sam ../Unpolished_Assembly/LR1-canu-guppy4-haplotigs.contigs.fasta > LR1-canu-guppy4-haplotigs-racon.contigs.fasta
+ 
+conda activate medaka
+medaka_consensus -v -i ~/data/fullgenome/leaf.rust.LR1_all.fastq -d LR1-canu-guppy4-haplotigs-racon.contigs.fasta -o LR1-canu-guppy4-haplotigs-racon.medaka.contigs.fasta -t 10 -m r941_min_high_g360
+conda deactivate
+ 
+bwa index LR1-canu-guppy4-haplotigs-racon.medaka.contigs.fasta/consensus.fasta
+bwa mem -t 20 LR1-canu-guppy4-haplotigs-racon.medaka.contigs.fasta/consensus.fasta ~/data/leaf_rust_LR1_illumina/LR1_combined_R1_001.clean.fastq.gz ~/data/leaf_rust_LR1_illumina/LR1_combined_R2_001.clean.fastq.gz | samtools view -bS | samtools sort -@ 20 -o illumina_mapping.sorted.bam
+samtools index -@ 20 illumina_mapping.sorted.bam
+java -Xmx32G -jar ~/enter/share/pilon-1.23-2/pilon-1.23.jar --genome LR1-canu-guppy4-haplotigs-racon.medaka.contigs.fasta/consensus.fasta --frags illumina_mapping.sorted.bam --fix indels --output LR1-canu-guppy4-haplotigs-racon.medaka.pilon1.contigs
+ 
+bwa index LR1-canu-guppy4-haplotigs-racon.medaka.pilon1.contigs.fasta
+bwa mem -t 20 LR1-canu-guppy4-haplotigs-racon.medaka.pilon1.contigs.fasta ~/data/leaf_rust_LR1_illumina/LR1_combined_R1_001.clean.fastq.gz ~/data/leaf_rust_LR1_illumina/LR1_combined_R2_001.clean.fastq.gz | samtools view -bS | samtools sort -@ 20 -o illumina_mapping_pilon1.sorted.bam
+samtools index -@ 20 illumina_mapping_pilon1.sorted.bam
+java -Xmx32G -jar ~/enter/share/pilon-1.23-2/pilon-1.23.jar --genome LR1-canu-guppy4-haplotigs-racon.medaka.pilon1.contigs.fasta --frags illumina_mapping_pilon1.sorted.bam --fix indels --output LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs
+ 
+2.11 Check mis-assembly of guppy4 haplotype canu assembly > broken guppy4 haplotype assembly
+###nanopore read alignment
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly$ minimap2 -t 20 -ax map-ont LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta ~/data/fullgenome/leaf.rust.LR1_all.fastq.gz | samtools view -bS | samtools sort -@ 20 -o nanopore_mapping_polished_assembly.bam
+samtools index nanopore_mapping_polished_assembly.bam
+###visualize these contigs and  find potential breakpoints
+tig00000001 at 5.5 MB
+tig00000076 at 3.5 MB
+tig00000080 at 1-1.8 MB; 1.8-2.4 MB
+tig00000008 at 7 MB
+###open igv
+(base) amber@fisher:~/IGV_Linux_2.8.4$ java --module-path=lib -Xmx4g @igv.args --module=org.igv/org.broad.igv.ui.Main
+###breakpoints found
+tig00000001_pilon_pilon: 5350000
+tig00000008_pilon_pilon: 7433374
+tig00000076_pilon_pilon: 3483328
+tig00000080_pilon_pilon: 1726717 and 2386528
+###break contigs based on breakpoints
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/BreakContigs$samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000001_pilon_pilon:1-5350000 >tig00000001_pilon_pilon_1.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000001_pilon_pilon:5350001-11871666  >tig00000001_pilon_pilon_2.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000008_pilon_pilon:1-7433374 >tig00000008_pilon_pilon_1.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000008_pilon_pilon:7433375-10493068>tig00000008_pilon_pilon_2.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000076_pilon_pilon:1-3483328 >tig00000076_pilon_pilon_1.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000076_pilon_pilon:3483329-7167604>tig00000076_pilon_pilon_2.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000080_pilon_pilon:1-1726717>tig00000080_pilon_pilon_1.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000080_pilon_pilon:1726718-2386528>tig00000080_pilon_pilon_2.fasta
+samtools faidx ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta tig00000080_pilon_pilon:2386529-6293379 >tig00000080_pilon_pilon_3.fasta
+find .|xargs cat >> corrected_contigs.fasta
+ 
+### use BreakContigs to update polished assembly > broken assembly
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly$mkdir broken_assembly
+touch breakcontigs.txt ##write the name of 4 contigs fragmented
+cd broken_assembly
+seqkit grep -v -n -f ../breakcontigs.txt ../LR1-canu-guppy4-haplotigs-racon.medaka.pilon2.contigs.fasta > tmp.fasta
+cat tmp.fasta ../BreakContigs/corrected_contigs.fasta > broken_polished_guppy4_haplotype.fasta
+rm -rf tmp.fasta
+ 
+ 
+2.12 Quality control of broken guppy4 haplotype assembly > clean guppy4 haplotype assembly
+###coverage analysis on broken assembly (illumina reads)
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly$ mkdir QC
+cd QC
+bwa index ../broken_polished_guppy4_haplotype.fasta
+bwa mem -t 20 ../broken_polished_guppy4_haplotype.fasta ~/data/leaf_rust_LR1_illumina/LR1_combined_R1_001.clean.fastq.gz ~/data/leaf_rust_LR1_illumina/LR1_combined_R2_001.clean.fastq.gz > illumina_mapping.sam
+pileup.sh in=illumina_mapping.sam out=stats.txt
+ 
+###find mitocondrial contigs
+###blast against mitochondrial database
+mkdir blast
+cd blast
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly/QC/blast$ blastn -query ~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly/broken_polished_guppy4_haplotype.fasta -db ~/MITO -evalue 1e-5 -num_threads 20 -dust yes -soft_masking true -perc_identity 90.0 -lcase_masking -outfmt "7 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore" | gawk '($3>=98.0 && $4>=50)||($3>=94.0 && $4>=100)||($3>=90.0 && $4>=200)' > mito.screen.txt
+cat mito.screen.txt | grep -v "^#" >> MITO_CONTIGS.txt
+cat MITO_CONTIGS.txt | cut -f1 |sort -u >> mito.contig.names.txt
+cat ../stats.txt | cut -f 1-3,9 > stats.id.cov.gc.txt
+{ head stats.id.cov.gc.txt -n 1 >> mito.contig.stats.txt & $(for tig in $(cat mito.contig.names.txt ); do grep $tig stats.id.cov.gc.txt >> mito.contig.stats.txt ; done); }
+cat MITO_CONTIGS.txt | cut -f1 | sort | uniq -c >> mito.contig.hits
+vim mito.contig.hits
+i
+#hits  #ID
+paste mito.contig.hits mito.contig.stats.txt mito.contig.hits | cut -f 1,3-5 | sort -k 5 > mito.contig.table
+for tig in $(cat mito.contig.names.txt ); do grep -v $tig stats.id.cov.gc.txt | sort -k 2 > other.contig.table ; done
+ 
+###find extremely high coverage hundreds to thoundans + low gc ~0.38 (putative mitochondrial contigs) in mito.contig.table
+tig00000811_pilon_pilon have 108 hits, length is 139 kb
+touch mito.txt ### write tig00000811_pilon_pilon
+### check the mitochondrial contig (align it with mitochondrial contig found before)
+seqtk subseq ../../broken_polished_guppy4_haplotype.fasta mito.txt > tig00000811_pilon_pilon.fasta###extract tig00000811_pilon_pilon from broken assembly
+minimap2 -t 20 tig00000811_pilon_pilon.fasta ~/data/LeafRust_Assembly/Canu_2.0_Assembly_HaplotypeParameters/new_phased_assembly/clean_assembly/tig00015085_pilon_pilon.fasta > mito_align.paf
+
+### find contaminations
+low coverage (bacterial contigs) in other.contig.table (supported by blast)
+touch bacteria.contigs.txt 
+tig00001077_pilon_pilon 
+tig00001074_pilon_pilon
+tig00001118_pilon_pilon 
+tig00001015_pilon_pilon
+tig00001037_pilon_pilon
+tig00000826_pilon_pilon
+tig00001107_pilon_pilon
+tig00000900_pilon_pilon 
+tig00001227_pilon_pilon 
+tig00001090_pilon_pilon 
+tig00001031_pilon_pilon 
+tig00000007_pilon_pilon 
+tig00001030_pilon_pilon 
+seqtk subseq ../../broken_polished_guppy4_haplotype.fasta bacteria.contigs.txt > bacteria.contigs.fasta
+so far, the files I have:
+​all contigs: (base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly$broken_polished_guppy4_haplotype.fasta
+only pt's mitochondrial contigs:(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly/QC/blast$tig00000811_pilon_pilon.fasta
+only bacteral contigs supported by blast: (base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/broken_assembly/QC/bacteria.contigs.fasta
+###remove mitochondrial contigs and contaminations in broken guppy4 haplotype assembly
+cat bacteria.contigs.txt mito.txt > removed.contigs.txt
+mkdir ../../../clean_assembly
+seqkit grep -v -n -f removed.contigs.txt ../../broken_polished_guppy4_haplotype.fasta > ../../../clean_assembly/clean_guppy4_haplotype_assembly.fasta
+2.13 Find collapsed regions in guppy4 clean haplotype assembly > clean guppy4 haplotype assembly with duplicated collapsed regions
+###preparation
+(base) amber@fisher:~/data/guppy4_haplotigs/Polished_Assembly/clean_assembly$ minimap2 -ax map-ont clean_guppy4_haplotype_assembly.fasta ~/data/fullgenome/leaf.rust.LR1_all.fastq.gz --secondary=no -o nanopore_mapping_clean_guppy4_clean_assembly.sam
+pileup.sh overwrite=true in=nanopore_mapping_clean_guppy4_clean_assembly.sam out=clean_guppy4_haplotype_assembly.stats.txt basecov=clean_guppy4_haplotype_assembly.basecov.txt binsize=1000 bincov=clean_guppy4_haplotype_assembly.bincov.txt
+ 
+###find valley 
+samtools view -bS nanopore_mapping_clean_guppy4_clean_assembly.sam | samtools sort -@ 20 -o nanopore_mapping_clean_guppy4_clean_assembly.sorted.bam
+samtools index -@ 20 nanopore_mapping_clean_guppy4_clean_assembly.sorted.bam
+samtools faidx clean_guppy4_haplotype_assembly.fasta
+purge_haplotigs  hist  -b nanopore_mapping_clean_guppy4_clean_assembly.sorted.bam  -g clean_guppy4_haplotype_assembly.fasta -t 20
+ 
+###run script to find collapsed regions
+mkdir CollapsedRegions
+python ~/find_collapsed_regions.py clean_guppy4_haplotype_assembly.bincov.txt 1000 35 clean_guppy4_haplotype_assembly.fasta
+cd CollapsedRegions
+find .|xargs cat >> ../collapsed_regions.fasta
+ 
+###assembly with duplicated collapsed regions
+cat collapsed_regions.fasta clean_guppy4_haplotype_assembly.fasta > clean_guppy4_haplotype_assembly_with_duplicated_collapsedregions.fasta
+ 
+### modify format so that SALSA can read
+sed -i 's/:/_/g' clean_guppy4_haplotype_assembly_with_duplicated_collapsedregions.fasta
+sed -i 's/-/_/g' clean_guppy4_haplotype_assembly_with_duplicated_collapsedregions.fasta
+ 
+
+
